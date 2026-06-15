@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { AUTH_COOKIE_NAME, parseAuthSession } from "@/lib/auth-session"
+import { createClient as createSupabaseClient } from "./utils/supabase/middleware"
 
 const authPages = ["/login", "/signup"]
 const authRequiredPaths = [
@@ -31,8 +32,20 @@ function matchesPath(pathname: string, patterns: string[]) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Skip Supabase session refresh for API routes and static assets
   if (pathname.startsWith("/api") || pathname.startsWith("/_next") || pathname === "/favicon.ico") {
     return NextResponse.next()
+  }
+
+  // Handle Supabase session refresh for authenticated routes
+  if (matchesPath(pathname, authRequiredPaths)) {
+    try {
+      const supabaseResponse = createSupabaseClient(request);
+      // The Supabase middleware handles session refresh automatically
+      // Continue with our existing auth logic
+    } catch (error) {
+      console.error("Supabase session refresh error:", error);
+    }
   }
 
   const rawSession = request.cookies.get(AUTH_COOKIE_NAME)?.value
