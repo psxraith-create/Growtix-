@@ -2,8 +2,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { getReportForUI } from "@/lib/live-report"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { getServerAuthSession } from "@/lib/auth-session"
+import { getSupabaseAdminClient } from "@/lib/supabase-admin"
 import {
   AlertCircle,
   ArrowDownRight,
@@ -23,20 +23,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   let isPastDue = false
   let daysLeft = 0
 
-  const supabase = createServerComponentClient({ cookies })
-  const { data: { session } } = await supabase.auth.getSession()
+  // Check for a past-due plan via the custom auth cookie (optional; never crashes on missing Supabase env).
+  const session = await getServerAuthSession()
 
-  if (session) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("plan_status, grace_period_ends_at")
-      .eq("id", session.user.id)
-      .single()
+  if (session?.email) {
+    try {
+      const supabase = getSupabaseAdminClient()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("plan_status, grace_period_ends_at")
+        .eq("email", session.email)
+        .single()
 
-    if (profile?.plan_status === "past_due" && profile?.grace_period_ends_at) {
-      isPastDue = true
-      const diffTime = new Date(profile.grace_period_ends_at).getTime() - new Date().getTime()
-      daysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+      if (profile?.plan_status === "past_due" && profile?.grace_period_ends_at) {
+        isPastDue = true
+        const diffTime = new Date(profile.grace_period_ends_at).getTime() - new Date().getTime()
+        daysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+      }
+    } catch (error) {
+      console.error("Dashboard profile check skipped:", error)
     }
   }
 
