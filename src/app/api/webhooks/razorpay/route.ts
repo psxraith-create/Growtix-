@@ -1,34 +1,27 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { sendPaymentFailedEmail, sendSubscriptionCancelledEmail } from "@/lib/email";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  return NextResponse.json({ error: "Database not configured" }, { status: 500 });
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 async function getUserBySubscriptionId(subscriptionId: string) {
+  const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("profiles")
     .select("email")
     .eq("razorpay_subscription_id", subscriptionId)
     .single();
-  
+
   if (error) {
     console.error("Error fetching user by subscription ID:", error);
     return null;
   }
-  
+
   return data;
 }
 
 export async function POST(req: Request) {
   try {
+    const supabase = getSupabaseAdminClient();
     const rawBody = await req.text();
     const signature = req.headers.get("x-razorpay-signature");
 
@@ -58,7 +51,7 @@ export async function POST(req: Request) {
     const event = body.event;
 
     let subscriptionId = body.payload?.subscription?.entity?.id;
-    
+
     // In case of payment.failed, the subscription entity might not be the primary payload
     if (!subscriptionId && event === "payment.failed") {
       subscriptionId = body.payload?.payment?.entity?.subscription_id;
@@ -87,7 +80,7 @@ export async function POST(req: Request) {
           plan_status: "past_due",
           grace_period_ends_at: graceEnd.toISOString(),
         };
-        
+
         // Send payment failed email
         const user = await getUserBySubscriptionId(subscriptionId);
         if (user && user.email) {
@@ -98,11 +91,11 @@ export async function POST(req: Request) {
         const currentPeriodEnd = body.payload.subscription.entity.current_period_end;
         updateData = {
           plan_status: "canceled",
-          plan_expires_at: currentPeriodEnd 
-            ? new Date(currentPeriodEnd * 1000).toISOString() 
+          plan_expires_at: currentPeriodEnd
+            ? new Date(currentPeriodEnd * 1000).toISOString()
             : null,
         };
-        
+
         // Send subscription cancelled email
         const userCancelled = await getUserBySubscriptionId(subscriptionId);
         if (userCancelled && userCancelled.email) {

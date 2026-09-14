@@ -1,18 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  return NextResponse.json({ error: "Database not configured" }, { status: 500 });
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 
 export async function POST(req: Request) {
   try {
+    const supabase = getSupabaseAdminClient();
     const body = await req.json();
     const { razorpay_payment_id, razorpay_subscription_id, razorpay_signature } = body;
 

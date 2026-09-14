@@ -29,7 +29,7 @@ function matchesPath(pathname: string, patterns: string[]) {
   return patterns.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Skip Supabase session refresh for API routes and static assets
